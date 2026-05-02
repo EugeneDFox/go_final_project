@@ -41,7 +41,6 @@ func checkDate(task *db.Task) error {
 		if len(task.Repeat) == 0 {
 			task.Date = now.Format("20060102")
 		} else {
-
 			task.Date = next
 		}
 	}
@@ -49,11 +48,14 @@ func checkDate(task *db.Task) error {
 }
 
 // writeJson is a helper that writes a JSON response with the correct Content‑Type header.
-// If encoding fails, it sends a 500 Internal Server Error with a generic error message.
-func writeJson(w http.ResponseWriter, data any) {
+// If encoding fails, the error is silently ignored because the headers have already been written.
+// In production, you might want to log such errors for debugging.
+func writeJson(w http.ResponseWriter, data any, statusCode int) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, `{"error":"внутренняя ошибка сервера"}`, http.StatusInternalServerError)
+		// If encoding fails, we cannot change the headers anymore
+		// Log the error but cannot send a different response
 	}
 }
 
@@ -74,22 +76,22 @@ func writeJson(w http.ResponseWriter, data any) {
 func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task db.Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		writeJson(w, map[string]string{"error": "неверный формат JSON"})
+		writeJson(w, map[string]string{"error": "неверный формат JSON"}, http.StatusBadRequest)
 		return
 	}
 	if task.Title == "" {
-		writeJson(w, map[string]string{"error": "Не указан заголовок задачи"})
+		writeJson(w, map[string]string{"error": "Не указан заголовок задачи"}, http.StatusBadRequest)
 		return
 	}
 
 	if err := checkDate(&task); err != nil {
-		writeJson(w, map[string]string{"error": err.Error()})
+		writeJson(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
 		return
 	}
 	id, err := db.AddTask(&task)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "ошибка сохранения задачи в базу данных"})
+		writeJson(w, map[string]string{"error": "ошибка сохранения задачи в базу данных"}, http.StatusInternalServerError)
 		return
 	}
-	writeJson(w, map[string]string{"id": fmt.Sprintf("%d", id)})
+	writeJson(w, map[string]string{"id": fmt.Sprintf("%d", id)}, http.StatusOK)
 }

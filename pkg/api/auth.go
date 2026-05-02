@@ -54,11 +54,11 @@ func SigninHandler(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeJson(w, map[string]string{"error": "неверный формат JSON"}, http.StatusBadRequest)
 		return
 	}
 	if err = json.Unmarshal(buf.Bytes(), &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeJson(w, map[string]string{"error": "неверный формат JSON"}, http.StatusBadRequest)
 		return
 	}
 	envPassword := os.Getenv("TODO_PASSWORD")
@@ -67,34 +67,22 @@ func SigninHandler(w http.ResponseWriter, r *http.Request) {
 		// If no password is set, allow any password (for development)
 		token, err := generateJWT(req.Password)
 		if err != nil {
-			http.Error(w, `{"error":"failed to generate token"}`, http.StatusInternalServerError)
+			writeJson(w, map[string]string{"error": "failed to generate token"}, http.StatusInternalServerError)
 			return
 		}
-		resp, err := json.Marshal(map[string]string{"token": token})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(resp)
+		writeJson(w, map[string]string{"token": token}, http.StatusOK)
 		return
 	}
 	// Compare passwords
 	if req.Password != envPassword {
-		http.Error(w, `{"error": "Неверный пароль"}`, http.StatusUnauthorized)
+		writeJson(w, map[string]string{"error": "Неверный пароль"}, http.StatusUnauthorized)
 		return
 	}
 	// Generate JWT token
 	token, err := generateJWT(envPassword)
 	if err != nil {
-		http.Error(w, `{"error":"failed to generate token"}`, http.StatusInternalServerError)
+		writeJson(w, map[string]string{"error": "failed to generate token"}, http.StatusInternalServerError)
 		return
 	}
-	resp, err := json.Marshal(map[string]string{"token": token})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
+	writeJson(w, map[string]string{"token": token}, http.StatusOK)
 }
